@@ -107,6 +107,9 @@ function _class(ReflectionClass $c){
 		$visibility = "";
 		if(class_exists('ReflectionClassConstant')){
 			$const = new ReflectionClassConstant($c->getName(), $k);
+			if($const->getDeclaringClass() != $c){
+				continue;
+			}
 			if($const->isPrivate()){
 				$visibility = "private";
 			}elseif($const->isProtected()){
@@ -121,7 +124,9 @@ function _class(ReflectionClass $c){
 	}
 
 	foreach($c->getProperties() as $p){
-		$res .= _property($p);
+		if($p->getDeclaringClass() == $c){
+			$res .= _property($p);
+		}
 	}
 
 	/* @var $m ReflectionMethod */
