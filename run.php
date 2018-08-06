@@ -216,7 +216,7 @@ function _function(ReflectionFunction $f){
 	if($f->getDocComment()){
 		$res .= $f->getDocComment();
 	}
-	$res .= $f->getShortName() . '(' .
+	$res .= 'function ' . $f->getShortName() . '(' .
 		implode(', ', array_map('_argument', $f->getParameters())) . ')';
 
 	if($f->getReturnType()){
