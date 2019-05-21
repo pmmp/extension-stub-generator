@@ -371,7 +371,7 @@ function _type(ReflectionType $t){
 	if($t->isBuiltin()){
 		$ret .= "$t";
 	}else{
-		$ret .= "\\$t";
+		$ret .= "\\" . ltrim($t, "\\");
 	}
 
 	return $ret;
