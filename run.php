@@ -373,7 +373,7 @@ function _type(ReflectionType $t) : string{
 	if($t->isBuiltin()){
 		$ret .= "$t";
 	}else{
-		$ret .= "\\" . ltrim($t, "\\");
+		$ret .= "\\" . ltrim($t->getName(), "\\");
 	}
 
 	return $ret;
