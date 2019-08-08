@@ -38,7 +38,7 @@ print doIt();
 function doIt() : string{
 	global $global, $namespaces;
 
-	$res = '<?php' . PHP_EOL;
+	$res = '<?php' . PHP_EOL . PHP_EOL;
 	$res .= '/**' . PHP_EOL . ' * Generated stub file for code completion purposes' . PHP_EOL . ' */';
 	$res .= PHP_EOL . PHP_EOL;
 
