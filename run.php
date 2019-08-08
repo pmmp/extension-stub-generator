@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 try{
 	$extension = new ReflectionExtension($argv[1]);
 }catch(ReflectionException $e){
