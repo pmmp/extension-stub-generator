@@ -2,17 +2,22 @@
 
 declare(strict_types=1);
 
+$options = getopt('', ['ext:', 'tree']);
+if(!isset($options['ext'])){
+	die('Usage: php ' . $argv[0] . ' --ext=extension [--tree]
+	--ext	Name of PHP extension
+	--tree	Optional argument, generates a file tree for the selected extension' . PHP_EOL);
+}
+
 try{
-	$extension = new ReflectionExtension($argv[1]);
+	$extension = new ReflectionExtension($extensionName = $options['ext']);
 }catch(ReflectionException $e){
 	echo $e->getMessage() . PHP_EOL;
 	exit(1);
 }
 
 define('TAB', "\t");
-
 define('PHP_HEADER', "<?php\n\n");
-define('NAMESPACE_HEADER', PHP_HEADER . "namespace %NS%;\n\n");
 
 $global = [];
 $namespaces = [];
@@ -38,25 +43,37 @@ foreach($classes as $class){
 	}
 }
 
-print doIt();
-
-function doIt() : string{
-	global $global, $namespaces;
-
+if(isset($options['tree'])){
+	foreach($namespaces as $ns => $data){
+		foreach($data as $filename => $php){
+			@mkdir(replaceWithDirectorySeparator($ns));
+			file_put_contents(replaceWithDirectorySeparator($filename), PHP_HEADER . "namespace $ns;\n\n" . implode("\n\n", $php));
+		}
+	}
+	if(!empty($global)){
+		file_put_contents("$extensionName.php", PHP_HEADER . implode("\n\n", $global));
+	}
+}else{
 	$res = PHP_HEADER;
 
-	foreach($namespaces as $ns => $php){
-		$res .= "namespace $ns {" . PHP_EOL;
-		$res .= implode(PHP_EOL . PHP_EOL, $php);
-		$res .= PHP_EOL . '}' . PHP_EOL;
+	foreach($namespaces as $ns => $data){
+		foreach($data as $php){
+			$res .= "namespace $ns {" . PHP_EOL;
+			$res .= implode(PHP_EOL . PHP_EOL, $php);
+			$res .= PHP_EOL . '}' . PHP_EOL . PHP_EOL;
+		}
 	}
 	$res .= implode(PHP_EOL . PHP_EOL, $global);
 
-	return $res;
+	print $res;
+}
+
+function replaceWithDirectorySeparator(string $subject) : string{
+	return str_replace("\\", DIRECTORY_SEPARATOR, $subject);
 }
 
 function putToNs(array $item) : void{
-	global $global, $namespaces;
+	global $global, $namespaces, $extensionName;
 	$ns = $item['ns'];
 	$php = $item['php'];
 	if($ns === null){
@@ -65,7 +82,8 @@ function putToNs(array $item) : void{
 		if(!isset($namespaces[$ns])){
 			$namespaces[$ns] = [];
 		}
-		$namespaces[$ns][] = $php;
+		$name = $item['name'] ?? $extensionName;
+		$namespaces[$ns]["$ns\\$name.php"][] = $php;
 	}
 }
 
@@ -142,6 +160,7 @@ function _class(ReflectionClass $c) : array{
 	$res .= '}';
 
 	return [
+		'name' => $c->getShortName(),
 		'ns' => $c->inNamespace() ? $c->getNamespaceName() : null,
 		'php' => $res
 	];
@@ -174,6 +193,7 @@ function _interface(ReflectionClass $c) : array{
 	$res .= '}';
 
 	return [
+		'name' => $c->getShortName(),
 		'ns' => $c->inNamespace() ? $c->getNamespaceName() : null,
 		'php' => $res
 	];
