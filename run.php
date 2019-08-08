@@ -9,6 +9,9 @@ try{
 
 define('TAB', "\t");
 
+define('PHP_HEADER', "<?php\n\n");
+define('NAMESPACE_HEADER', PHP_HEADER . "namespace %NS%;\n\n");
+
 $global = [];
 $namespaces = [];
 
@@ -38,9 +41,7 @@ print doIt();
 function doIt() : string{
 	global $global, $namespaces;
 
-	$res = '<?php' . PHP_EOL . PHP_EOL;
-	$res .= '/**' . PHP_EOL . ' * Generated stub file for code completion purposes' . PHP_EOL . ' */';
-	$res .= PHP_EOL . PHP_EOL;
+	$res = PHP_HEADER;
 
 	foreach($namespaces as $ns => $php){
 		$res .= "namespace $ns {" . PHP_EOL;
