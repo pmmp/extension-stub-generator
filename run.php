@@ -385,7 +385,7 @@ function _argument(ReflectionParameter $p) : string{
 	return $res;
 }
 
-function _type(ReflectionType $t) : string{
+function _type(ReflectionNamedType $t) : string{
 	$ret = "";
 	if($t->allowsNull()){
 		$ret .= "?";
