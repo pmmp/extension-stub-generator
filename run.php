@@ -1,13 +1,23 @@
 <?php
 
+declare(strict_types=1);
+
+$options = getopt('', ['ext:', 'tree']);
+if(!isset($options['ext'])){
+	die('Usage: php ' . $argv[0] . ' --ext=extension [--tree]
+	--ext	Name of PHP extension
+	--tree	Optional argument, generates a file tree for the selected extension' . PHP_EOL);
+}
+
 try{
-	$extension = new ReflectionExtension($argv[1]);
-}catch(\ReflectionException $e){
+	$extension = new ReflectionExtension($extensionName = $options['ext']);
+}catch(ReflectionException $e){
 	echo $e->getMessage() . PHP_EOL;
 	exit(1);
 }
 
 define('TAB', "\t");
+define('PHP_HEADER', "<?php\n\n");
 
 $global = [];
 $namespaces = [];
@@ -17,8 +27,8 @@ $classes = $extension->getClasses();
 $constants = $extension->getConstants();
 
 
-foreach($constants as $cname => $cvalue){
-	putToNs(_constant($cname, $cvalue));
+foreach($constants as $constant => $value){
+	putToNs(_constant($constant, $value));
 }
 
 foreach($functions as $function){
@@ -33,48 +43,59 @@ foreach($classes as $class){
 	}
 }
 
-print doIt();
+if(isset($options['tree'])){
+	foreach($namespaces as $ns => $data){
+		foreach($data as $filename => $php){
+			@mkdir(replaceWithDirectorySeparator($ns));
+			file_put_contents(replaceWithDirectorySeparator($filename), PHP_HEADER . "namespace $ns;\n\n" . implode("\n\n", $php));
+		}
+	}
+	if(!empty($global)){
+		file_put_contents("$extensionName.php", PHP_HEADER . implode("\n\n", $global));
+	}
+}else{
+	$res = PHP_HEADER;
 
-function doIt(){
-	global $global, $namespaces;
-
-	$res = '<?php' . PHP_EOL;
-	$res .= '/**' . PHP_EOL . ' * Generated stub file for code completion purposes' . PHP_EOL . ' */';
-	$res .= PHP_EOL . PHP_EOL;
-
-	foreach($namespaces as $ns => $php){
-		$res .= "namespace $ns {" . PHP_EOL;
-		$res .= implode(PHP_EOL . PHP_EOL, $php);
-		$res .= PHP_EOL . '}' . PHP_EOL;
+	foreach($namespaces as $ns => $data){
+		foreach($data as $php){
+			$res .= "namespace $ns {" . PHP_EOL;
+			$res .= implode(PHP_EOL . PHP_EOL, $php);
+			$res .= PHP_EOL . '}' . PHP_EOL . PHP_EOL;
+		}
 	}
 	$res .= implode(PHP_EOL . PHP_EOL, $global);
 
-	return $res;
+	print $res;
 }
 
-function putToNs(array $item){
-	global $global, $namespaces;
+function replaceWithDirectorySeparator(string $subject) : string{
+	return str_replace("\\", DIRECTORY_SEPARATOR, $subject);
+}
+
+function putToNs(array $item) : void{
+	global $global, $namespaces, $extensionName;
 	$ns = $item['ns'];
 	$php = $item['php'];
-	if($ns == null){
+	if($ns === null){
 		$global[] = $php;
 	}else{
 		if(!isset($namespaces[$ns])){
 			$namespaces[$ns] = [];
 		}
-		$namespaces[$ns][] = $php;
+		$name = $item['name'] ?? $extensionName;
+		$namespaces[$ns]["$ns\\$name.php"][] = $php;
 	}
 }
 
-function _constant(string $cname, $cvalue){
-	$split = explode("\\", $cname);
+function _constant(string $constant, $value) : array{
+	$split = explode("\\", $constant);
 	$name = array_pop($split);
 	$namespace = null;
 	if(count($split)){
 		$namespace .= implode("\\", $split);
 	}
 
-	$res = 'const ' . $name . ' = ' . var_export($cvalue, true) . ';';
+	$res = 'const ' . $name . ' = ' . var_export($value, true) . ';';
 
 	return [
 		'ns' => $namespace,
@@ -82,7 +103,7 @@ function _constant(string $cname, $cvalue){
 	];
 }
 
-function _class(ReflectionClass $c){
+function _class(ReflectionClass $c) : array{
 	$res = _classModifiers($c) . $c->getShortName();
 	if($c->getParentClass()){
 		$res .= " extends \\" . $c->getParentClass()->getName();
@@ -92,7 +113,7 @@ function _class(ReflectionClass $c){
 	if(!empty($interfaces)){
 		$res .= ' implements ';
 
-		$res .= implode(', ', array_map(function(ReflectionClass $i){
+		$res .= implode(', ', array_map(function(ReflectionClass $i) : string{
 			return "\\" . $i->getName();
 		}, $interfaces));
 	}
@@ -107,7 +128,7 @@ function _class(ReflectionClass $c){
 		$visibility = "";
 		if(class_exists('ReflectionClassConstant')){
 			$const = new ReflectionClassConstant($c->getName(), $k);
-			if($const->getDeclaringClass() != $c){
+			if($const->getDeclaringClass()->name !== $c->name){
 				continue;
 			}
 			if($const->isPrivate()){
@@ -124,14 +145,14 @@ function _class(ReflectionClass $c){
 	}
 
 	foreach($c->getProperties() as $p){
-		if($p->getDeclaringClass() == $c){
+		if($p->getDeclaringClass()->name === $c->name){
 			$res .= _property($p);
 		}
 	}
 
 	/* @var $m ReflectionMethod */
 	foreach($c->getMethods() as $m){
-		if($m->getDeclaringClass() == $c){
+		if($m->getDeclaringClass()->name === $c->name){
 			$res .= _method($m);
 		}
 	}
@@ -139,18 +160,19 @@ function _class(ReflectionClass $c){
 	$res .= '}';
 
 	return [
+		'name' => $c->getShortName(),
 		'ns' => $c->inNamespace() ? $c->getNamespaceName() : null,
 		'php' => $res
 	];
 }
 
-function _interface(ReflectionClass $c){
+function _interface(ReflectionClass $c) : array{
 	$res = _classModifiers($c) . $c->getShortName();
 
 	$interfaces = getActualInterfaces($c);
 	if(!empty($interfaces)){
 		$res .= ' extends ';
-		$res .= implode(', ', array_map(function(ReflectionClass $i){
+		$res .= implode(', ', array_map(function(ReflectionClass $i) : string{
 			return "\\" . $i->getName();
 		}, $interfaces));
 	}
@@ -163,7 +185,7 @@ function _interface(ReflectionClass $c){
 
 	/* @var $m ReflectionMethod */
 	foreach($c->getMethods() as $m){
-		if($m->getDeclaringClass() == $c){
+		if($m->getDeclaringClass()->name === $c->name){
 			$res .= _method($m);
 		}
 	}
@@ -171,12 +193,13 @@ function _interface(ReflectionClass $c){
 	$res .= '}';
 
 	return [
+		'name' => $c->getShortName(),
 		'ns' => $c->inNamespace() ? $c->getNamespaceName() : null,
 		'php' => $res
 	];
 }
 
-function getActualInterfaces(ReflectionClass $c){
+function getActualInterfaces(ReflectionClass $c) : array{
 	$list = $c->getInterfaces();
 
 	foreach($list as $interface){
@@ -211,7 +234,7 @@ function recursiveGetInterfaces(ReflectionClass $c) : array{
 	}
 }
 
-function _function(ReflectionFunction $f){
+function _function(ReflectionFunction $f) : array{
 	$res = '';
 	if($f->getDocComment()){
 		$res .= $f->getDocComment();
@@ -232,7 +255,7 @@ function _function(ReflectionFunction $f){
 }
 
 
-function _classModifiers(ReflectionClass $c){
+function _classModifiers(ReflectionClass $c) : string{
 	$res = '';
 	if($c->isInterface()){
 		$res .= 'interface ';
@@ -253,7 +276,7 @@ function _classModifiers(ReflectionClass $c){
 	return $res;
 }
 
-function _property(ReflectionProperty $p){
+function _property(ReflectionProperty $p) : string{
 	$res = TAB;
 	if($p->getDocComment()){
 		$res .= $p->getDocComment() . PHP_EOL . TAB;
@@ -262,10 +285,9 @@ function _property(ReflectionProperty $p){
 	$res .= _propModifiers($p) . '$' . $p->getName() . ';' . PHP_EOL;
 
 	return $res;
-
 }
 
-function _propModifiers(ReflectionProperty $p){
+function _propModifiers(ReflectionProperty $p) : string{
 	$res = '';
 	if($p->isPublic()){
 		$res .= 'public ';
@@ -281,10 +303,9 @@ function _propModifiers(ReflectionProperty $p){
 	}
 
 	return $res;
-
 }
 
-function _method(ReflectionMethod $m){
+function _method(ReflectionMethod $m) : string{
 	/* @var $m ReflectionMethod */
 	$res = TAB;
 	if($m->getDocComment()){
@@ -306,7 +327,7 @@ function _method(ReflectionMethod $m){
 	return PHP_EOL . $res;
 }
 
-function _methodModifiers(ReflectionMethod $m){
+function _methodModifiers(ReflectionMethod $m) : string{
 	$res = '';
 
 	if(!$m->getDeclaringClass()->isInterface()){
@@ -336,7 +357,7 @@ function _methodModifiers(ReflectionMethod $m){
 	return $res;
 }
 
-function _argument(ReflectionParameter $p){
+function _argument(ReflectionParameter $p) : string{
 	$res = '';
 	if($type = $p->getType()){
 		$res .= _type($type) . ' ';
@@ -354,6 +375,7 @@ function _argument(ReflectionParameter $p){
 
 	if($p->isOptional() and !$p->isVariadic()){
 		if($p->isDefaultValueAvailable()){
+			/** @noinspection PhpUnhandledExceptionInspection */
 			$res .= ' = ' . var_export($p->getDefaultValue(), true);
 		}else{
 			$res .= " = null";
@@ -363,15 +385,15 @@ function _argument(ReflectionParameter $p){
 	return $res;
 }
 
-function _type(ReflectionType $t){
+function _type(ReflectionNamedType $t) : string{
 	$ret = "";
 	if($t->allowsNull()){
-	//	$ret .= "?";
+		$ret .= "?";
 	}
 	if($t->isBuiltin()){
 		$ret .= "$t";
 	}else{
-		$ret .= "\\" . ltrim($t, "\\");
+		$ret .= "\\" . ltrim($t->getName(), "\\");
 	}
 
 	return $ret;
