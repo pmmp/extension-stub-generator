@@ -391,7 +391,7 @@ function _type(ReflectionNamedType $t) : string{
 		$ret .= "?";
 	}
 	if($t->isBuiltin()){
-		$ret .= "$t";
+		$ret .= $t->getName();
 	}else{
 		$ret .= "\\" . ltrim($t->getName(), "\\");
 	}
