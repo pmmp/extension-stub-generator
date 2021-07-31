@@ -47,7 +47,7 @@ if(isset($options['tree'])){
 	foreach($namespaces as $ns => $data){
 		foreach($data as $filename => $php){
 			@mkdir(replaceWithDirectorySeparator($ns), 0777, true);
-			file_put_contents(replaceWithDirectorySeparator($filename), PHP_HEADER . "namespace $ns;\n\n" . implode("\n\n", $php));
+			file_put_contents(replaceWithDirectorySeparator($filename), str_replace(PHP_EOL, "\n", PHP_HEADER . "namespace $ns;\n\n" . implode("\n\n", $php)));
 		}
 	}
 	if(!empty($global)){
