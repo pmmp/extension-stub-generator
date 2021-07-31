@@ -2,11 +2,12 @@
 
 declare(strict_types=1);
 
-$options = getopt('', ['ext:', 'tree']);
+$options = getopt('', ['ext:', 'tree', 'suffix:']);
 if(!isset($options['ext'])){
 	die('Usage: php ' . $argv[0] . ' --ext=extension [--tree]
-	--ext	Name of PHP extension
-	--tree	Optional argument, generates a file tree for the selected extension' . PHP_EOL);
+	--ext	  Name of PHP extension
+	--tree	  Optional argument, generates a file tree for the selected extension
+	--suffix  File extension to use for files (default is php)' . PHP_EOL);
 }
 
 try{
@@ -18,6 +19,8 @@ try{
 
 define('TAB', "\t");
 define('PHP_HEADER', "<?php\n\n");
+
+$fileExtension = $options["suffix"] ?? "php";
 
 $global = [];
 $namespaces = [];
@@ -51,7 +54,8 @@ if(isset($options['tree'])){
 		}
 	}
 	if(!empty($global)){
-		file_put_contents("$extensionName.php", PHP_HEADER . implode("\n\n", $global));
+		global $fileExtension;
+		file_put_contents("$extensionName.$fileExtension", PHP_HEADER . implode("\n\n", $global));
 	}
 }else{
 	$res = PHP_HEADER;
@@ -82,8 +86,9 @@ function putToNs(array $item) : void{
 		if(!isset($namespaces[$ns])){
 			$namespaces[$ns] = [];
 		}
+		global $fileExtension;
 		$name = $item['name'] ?? $extensionName;
-		$namespaces[$ns]["$ns\\$name.php"][] = $php;
+		$namespaces[$ns]["$ns\\$name.$fileExtension"][] = $php;
 	}
 }
 
